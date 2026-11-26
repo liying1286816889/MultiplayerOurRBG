@@ -55,3 +55,6 @@ MyRPG-test.zip
 # ===== 崩溃报告 =====
 sysinfo.txt
 crashlytics-build.properties
+
+# ===== 打包产物（发到 GitHub Release，不进仓库）=====
+*Build.zip

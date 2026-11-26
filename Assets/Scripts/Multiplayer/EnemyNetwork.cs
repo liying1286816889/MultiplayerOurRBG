@@ -89,8 +89,12 @@ public class EnemyNetwork : NetworkBehaviour
         if (Enemy.rb != null)
         {
             Enemy.rb.velocity = Vector2.zero;
-            Enemy.rb.simulated = false;
+
+            // 同样不能 simulated = false：那样客户端的攻击检测（OverlapCircleAll）
+            // 就找不到这个敌人，玩家打了没反应。
+            // Kinematic 保证它仍参与物理查询，位置交给 NetworkTransform。
             Enemy.rb.bodyType = RigidbodyType2D.Kinematic;
+            Enemy.rb.simulated = true;
         }
     }
 

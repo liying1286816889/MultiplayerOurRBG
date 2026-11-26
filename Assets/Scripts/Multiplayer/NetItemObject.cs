@@ -69,6 +69,23 @@ public class NetItemObject : NetworkBehaviour
         }
     }
 
+    /// <summary>客户端请求服务器销毁这个掉落物（被拾取时用）。</summary>
+    [ServerRpc(RequireOwnership = false)]
+    public void RequestDespawnServerRpc()
+    {
+        if (!IsServer) return;
+
+        NetworkObject no = GetComponent<NetworkObject>();
+        if (no != null && no.IsSpawned)
+        {
+            no.Despawn(true);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+
     private void ResolveFromId(string itemId)
     {
         if (string.IsNullOrEmpty(itemId)) return;

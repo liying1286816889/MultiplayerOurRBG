@@ -797,7 +797,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   port: 7777
   defaultAddress: 127.0.0.1
-  maxPlayers: 2
+  maxPlayers: 4
   gameplaySceneName: MainScene
   playerPrefab: {fileID: 8951307052964080706, guid: 8d189e68cd68f014e9f54c99594579d0, type: 3}
   extraNetworkPrefabs:

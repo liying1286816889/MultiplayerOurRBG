@@ -161,7 +161,15 @@ public class PlayerNetwork : NetworkBehaviour
         if (rb != null)
         {
             rb.velocity = Vector2.zero;
-            rb.simulated = false;
+
+            // 关键：不能把 simulated 设成 false。
+            // Rigidbody2D.simulated = false 会让这个刚体的 Collider2D 退出物理世界，
+            // 导致服务器上的敌人射线/圆形检测【完全看不到这个玩家】——
+            // 表现就是"怪物不会攻击我"。
+            // 改成 Kinematic：依然参与物理查询，但不受重力和外力影响，
+            // 位置由 NetworkTransform 驱动。
+            rb.bodyType = RigidbodyType2D.Kinematic;
+            rb.simulated = true;
         }
 
 

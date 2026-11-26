@@ -87,15 +87,17 @@ public class EnemyStats : CharacterStats
             return;
         }
 
-        // 联机：灵魂发给最后一击的玩家；掉落物只在服务器生成；销毁交给 EnemyNetwork
+        // 联机：灵魂发给最后一击的玩家，销毁交给 EnemyNetwork。
+        // 掉落物改为【本地掉落】：服务器不生成，各客户端在收到死亡同步后自己生成。
         if (NetGame.IsServer)
         {
             EnemyNetwork.AwardKillSouls(this);
+        }
 
-            if (myDropSystem != null)
-            {
-                myDropSystem.GenerateDrop();
-            }
+        // 房主模式：本机既是服务器又是客户端，也要生成自己那份掉落
+        if (NetGame.IsClient)
+        {
+            GenerateLocalDrop();
         }
     }
 
@@ -107,6 +109,20 @@ public class EnemyStats : CharacterStats
         if (enemy != null)
         {
             enemy.Die();
+        }
+
+        // 纯客户端：各自生成自己的掉落物
+        if (!NetGame.IsServer)
+        {
+            GenerateLocalDrop();
+        }
+    }
+
+    private void GenerateLocalDrop()
+    {
+        if (myDropSystem != null)
+        {
+            myDropSystem.GenerateDrop();
         }
     }
 

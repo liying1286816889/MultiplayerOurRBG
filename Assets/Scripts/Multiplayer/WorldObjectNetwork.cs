@@ -119,29 +119,46 @@ public static class NetWorld
     {
         if (target == null) return;
 
+        // 单机：直接删
         if (!NetGame.IsOnline)
         {
             Object.Destroy(target);
             return;
         }
 
-        WorldObjectNetwork net = target.GetComponent<WorldObjectNetwork>();
         NetworkObject no = target.GetComponent<NetworkObject>();
 
-        if (net == null || no == null || !no.IsSpawned)
+        // 不是联网物件（例如本地生成的特效）：本地删掉就行
+        if (no == null || !no.IsSpawned)
         {
-            // 不是联网物件（例如本地生成的特效），直接本地删除
             Object.Destroy(target);
             return;
         }
 
+        // 服务器：直接销毁并同步给所有人
         if (NetGame.IsServer)
         {
             no.Despawn(true);
+            return;
         }
-        else
+
+        // 客户端：必须【请求】服务器销毁。
+        // 客户端直接 Destroy 一个已 spawn 的 NetworkObject 是非法的，
+        // NGO 会拒绝并打印 [Invalid Destroy]，物件会残留（可以被重复拾取）。
+        WorldObjectNetwork worldNet = target.GetComponent<WorldObjectNetwork>();
+        if (worldNet != null)
         {
-            net.RequestDespawnServerRpc();
+            worldNet.RequestDespawnServerRpc();
+            return;
         }
+
+        NetItemObject itemNet = target.GetComponent<NetItemObject>();
+        if (itemNet != null)
+        {
+            itemNet.RequestDespawnServerRpc();
+            return;
+        }
+
+        Debug.LogWarning("[NetWorld] 这个联网物件没有提供销毁 RPC，已忽略：" + target.name);
     }
 }

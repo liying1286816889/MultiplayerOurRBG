@@ -36,7 +36,7 @@ public class NetBootstrap : MonoBehaviour
     [Tooltip("默认连接地址，局域网里填房主的 IPv4 地址")]
     [SerializeField] private string defaultAddress = "127.0.0.1";
     [Tooltip("最多允许的玩家数量（本项目按 2 人合作设计）")]
-    [SerializeField] private int maxPlayers = 2;
+    [SerializeField] private int maxPlayers = 4;
 
     [Header("场景")]
     [Tooltip("进入联机后由服务器加载的游戏场景名")]
@@ -62,6 +62,26 @@ public class NetBootstrap : MonoBehaviour
 
     [Tooltip("每次重试的间隔（秒）")]
     [SerializeField] private float clientRetryInterval = 2.5f;
+
+    [Tooltip("每一次连接尝试最多等多久（秒）。\n" +
+             "UDP 握手包丢一次就要多等 1 秒，网络差的时候 3~8 秒很正常。\n" +
+             "这个值千万不能小 —— 以前是 2.5 秒就判失败，会把还在握手中的连接主动掐掉，\n" +
+             "表现就是「某个朋友怎么都连不上，但服务器明明是好的」。")]
+    [SerializeField] private float connectAttemptWindow = 12f;
+
+    [Header("掉线自动重连")]
+    [Tooltip("连上以后意外掉线时自动重连几次（0 = 不重连，直接回主菜单并显示原因）")]
+    [SerializeField] private int autoReconnectCount = 4;
+
+    [Tooltip("每次自动重连最多等多久（秒）")]
+    [SerializeField] private float autoReconnectWindow = 12f;
+
+    /// <summary>
+    /// 构建版本标记。客户端和服务端启动时都会打印它，
+    /// 用来快速确认两端是不是同一份代码（排查"连上了但行为不对"时特别有用）。
+    /// 每次改了联机相关代码就把它改一下。
+    /// </summary>
+    public const string BuildTag = "v4-reconnect";
 
     public SessionState State { get; private set; } = SessionState.Offline;
     public string LastError { get; private set; } = string.Empty;
@@ -100,6 +120,8 @@ public class NetBootstrap : MonoBehaviour
 
     private void Start()
     {
+        Debug.Log("[NetBootstrap] 构建版本 " + BuildTag);
+
         if (autoStartFromCommandLine)
         {
             TryAutoStartFromCommandLine();
@@ -210,7 +232,12 @@ public class NetBootstrap : MonoBehaviour
     {
         string path = GetServerConfigPath();
         if (string.IsNullOrEmpty(path)) return;
-        if (!System.IO.File.Exists(path)) return;
+        if (!System.IO.File.Exists(path))
+        {
+            Debug.Log("[NetBootstrap] 没有命令行参数，也没找到 " + path +
+                      " —— 停在主菜单。把这个文件放好并写入服务器 IP，就能启动即自动连服。");
+            return;
+        }
 
         try
         {
@@ -253,6 +280,10 @@ public class NetBootstrap : MonoBehaviour
 
     /// <summary>
     /// 客户端带重试的加入：先开客户端、后开房主也能连上。
+    ///
+    /// 关键改动：每一次尝试都给足 <see cref="connectAttemptWindow"/> 秒。
+    /// 以前是固定 2.5 秒就判失败并 Shutdown —— 网络稍差的时候 UDP 握手还在进行中
+    /// 就被我们自己主动掐断了，表现就是「某个朋友怎么都进不来，但服务器一直是好的」。
     /// </summary>
     private IEnumerator JoinWithRetry(string address)
     {
@@ -262,35 +293,175 @@ public class NetBootstrap : MonoBehaviour
         {
             if (State == SessionState.Connected || State == SessionState.Hosting) yield break;
 
-            // StartClient 内部会把状态设成 Connecting，所以这里不能先设，
-            // 否则 StartClient 会因为 "正在连接中" 直接返回 false。
             Debug.Log($"[NetBootstrap] 尝试连接 {address}:{port}（第 {i + 1}/{attempts} 次）");
-            StartClient(address);
 
-            // 给传输层一点时间
+            if (!ConnectOnce(address))
+            {
+                yield return new WaitForSecondsRealtime(Mathf.Max(0.5f, clientRetryInterval));
+                continue;
+            }
+
             float waited = 0f;
-            float timeout = Mathf.Max(1f, clientRetryInterval);
-            while (waited < timeout)
+            float window = Mathf.Max(3f, connectAttemptWindow);
+
+            while (waited < window)
             {
                 if (State == SessionState.Connected) yield break;
+
+                // 传输层已经明确报告这一轮失败了就别干等
+                if (lastAttemptFailed) break;
+
                 waited += Time.unscaledDeltaTime;
                 yield return null;
             }
 
-            // 连不上就把 NetworkManager 关干净再重试
-            NetworkManager nm = NetworkManager.Singleton;
-            if (nm != null && nm.IsListening)
-            {
-                nm.Shutdown();
-            }
+            if (State == SessionState.Connected) yield break;
 
-            SessionRequested = false;
+            Debug.LogWarning($"[NetBootstrap] 第 {i + 1} 次连接 {address}:{port} 在 {window:0.#} 秒内没完成，" +
+                             "关掉重来（UDP 握手本来就允许丢包重发）");
+            ShutdownNetwork();
             yield return null;
         }
 
-        Debug.LogError($"[NetBootstrap] 连不上 {address}:{port}，重试 {attempts} 次都失败了。" +
-                       "请确认房主已经点了创建房间，并且防火墙放行了 UDP " + port);
-        SetState(SessionState.Failed, $"连不上 {address}:{port}");
+        Fail($"连不上 {address}:{port}（试了 {attempts} 次）。" +
+             "请确认服务器开着，并且云服务器安全组 + Windows 防火墙都放行了 UDP " + port);
+    }
+
+    /// <summary>
+    /// 真正发起一次客户端连接。
+    /// 故意不做「是不是已经在连接」的状态检查 —— 自动重连需要能反复调用它。
+    /// 返回 false 表示连 <c>StartClient</c> 都没能启动。
+    /// </summary>
+    private bool ConnectOnce(string address)
+    {
+        NetworkManager nm = EnsureNetworkManager();
+        if (nm == null) return false;
+
+        string cleanAddress;
+        string error;
+        if (!SanitizeAddress(address, out cleanAddress, out error))
+        {
+            Debug.LogError("[NetBootstrap] 地址不合法：" + error);
+            return false;
+        }
+
+        UnityTransport transport = nm.GetComponent<UnityTransport>();
+        if (transport != null)
+        {
+            // 客户端：连到服务器地址；本地监听交给系统分配
+            transport.SetConnectionData(cleanAddress, port, "0.0.0.0");
+        }
+
+        Address = cleanAddress;
+        SessionRequested = true;
+        lastAttemptFailed = false;
+
+        // 直接赋值：绕过 StartClient 里 "Starting/Connecting 就拒绝" 的前置检查
+        State = SessionState.Connecting;
+
+        bool ok = nm.StartClient();
+        if (!ok)
+        {
+            Debug.LogWarning("[NetBootstrap] StartClient 没启动起来（上一轮的连接可能还没关干净）");
+        }
+
+        return ok;
+    }
+
+    /// <summary>把当前这一轮连接彻底关干净，不发重试、也不改状态机。</summary>
+    private void ShutdownNetwork()
+    {
+        NetworkManager nm = NetworkManager.Singleton;
+        if (nm != null && nm.IsListening)
+        {
+            nm.Shutdown();
+        }
+
+        SessionRequested = false;
+        NetGame.Reset();
+    }
+
+    #endregion
+
+    #region 掉线自动重连
+
+    /// <summary>上一轮连接是不是已经被传输层明确判失败了（用来提前结束等待）。</summary>
+    private bool lastAttemptFailed;
+
+    private Coroutine reconnectRoutine;
+
+    /// <summary>
+    /// 连上之后意外掉线时的处理。
+    ///
+    /// 以前掉线只把状态改成「失败」就完事，玩家会留在一个没有角色、没有网络的世界里，
+    /// 看起来就是「卡住了 / 进不去」。现在先自己重连，实在连不回来才回主菜单并显示原因。
+    /// </summary>
+    private void BeginAutoReconnect(string reason)
+    {
+        string address = Address;
+
+        if (autoReconnectCount <= 0 || string.IsNullOrEmpty(address))
+        {
+            Fail("掉线了：" + reason);
+            return;
+        }
+
+        if (reconnectRoutine != null)
+        {
+            StopCoroutine(reconnectRoutine);
+            reconnectRoutine = null;
+        }
+
+        // 注意：这里不能立刻动 NetworkManager —— 我们现在还在 NGO 的断开回调里，
+        // 它自己还要收尾。所以真正的清理放在协程里，等一帧之后再做。
+        reconnectRoutine = StartCoroutine(AutoReconnectRoutine(address, reason));
+    }
+
+    private IEnumerator AutoReconnectRoutine(string address, string reason)
+    {
+        int attempts = Mathf.Max(1, autoReconnectCount);
+
+        for (int i = 0; i < attempts; i++)
+        {
+            SetState(SessionState.Connecting, $"掉线（{reason}），正在自动重连 {i + 1}/{attempts} ...");
+
+            // 等 NGO 把旧连接收干净，顺便让画面上的提示能被看到
+            yield return new WaitForSecondsRealtime(i == 0 ? 1.5f : 2f);
+
+            ShutdownNetwork();
+            yield return null;
+
+            if (!ConnectOnce(address))
+            {
+                yield return null;
+                continue;
+            }
+
+            float waited = 0f;
+            float window = Mathf.Max(4f, autoReconnectWindow);
+
+            while (waited < window)
+            {
+                if (State == SessionState.Connected)
+                {
+                    Debug.Log("[NetBootstrap] 自动重连成功，已回到游戏");
+                    reconnectRoutine = null;
+                    yield break;
+                }
+
+                if (lastAttemptFailed) break;
+
+                waited += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            Debug.LogWarning($"[NetBootstrap] 自动重连第 {i + 1} 次没成功");
+            ShutdownNetwork();
+            yield return null;
+        }
+
+        reconnectRoutine = null;
+        Fail($"掉线了（{reason}），自动重连 {attempts} 次都失败了");
     }
 
     #endregion
@@ -431,12 +602,32 @@ public class NetBootstrap : MonoBehaviour
 
         if (nm.IsServer)
         {
-            // 人数上限保护
-            int connected = nm.ConnectedClientsIds.Count;
-            if (connected > maxPlayers && clientId != NetworkManager.ServerClientId)
+            if (clientId == NetworkManager.ServerClientId)
             {
-                Debug.LogWarning($"[NetBootstrap] 房间已满（上限 {maxPlayers}），踢出客户端 {clientId}");
+                Debug.Log("[NetBootstrap] 服务器自身已就绪");
+                return;
+            }
+
+            // 人数上限保护：必须把「服务器自己」排除在玩家数之外。
+            // 专用服务端模式下 ConnectedClientsIds 里包含服务器自己的 clientId(0)，
+            // 如果直接拿 Count 比较，2 人合作时第 2 个玩家会被误踢。
+            int playerCount = 0;
+            for (int i = 0; i < nm.ConnectedClientsIds.Count; i++)
+            {
+                if (nm.ConnectedClientsIds[i] != NetworkManager.ServerClientId)
+                {
+                    playerCount++;
+                }
+            }
+
+            if (playerCount > maxPlayers)
+            {
+                Debug.LogWarning($"[NetBootstrap] 房间已满（上限 {maxPlayers} 人），踢出客户端 {clientId}");
                 StartCoroutine(KickClientNextFrame(clientId));
+            }
+            else
+            {
+                Debug.Log($"[NetBootstrap] 客户端 {clientId} 已连接（当前玩家 {playerCount}/{maxPlayers}）");
             }
         }
         else if (clientId == nm.LocalClientId)
@@ -462,12 +653,32 @@ public class NetBootstrap : MonoBehaviour
 
         if (!nm.IsServer && clientId == nm.LocalClientId)
         {
-            SetState(SessionState.Failed, "与服务器的连接已断开");
-            CleanupSession();
+            // 说明：NGO 的服务端不会告诉客户端「为什么」被断开。
+            // 只有服务端主动踢人（DisconnectClient 带理由）时才会传一个字串过来，
+            // 网络超时 / 掉线 / 被防火墙掐断 这些情况 DisconnectReason 都是空的。
+            string reason = nm.DisconnectReason;
+            if (string.IsNullOrEmpty(reason)) reason = "网络中断或超时（服务端没有给出原因）";
+
+            if (State == SessionState.Connecting || State == SessionState.Starting)
+            {
+                // 这一轮连接尝试没成功：交给 JoinWithRetry 继续重试，别在这里抢着处理
+                Debug.LogWarning("[NetBootstrap] 本次连接尝试失败：" + reason);
+                lastAttemptFailed = true;
+                return;
+            }
+
+            Debug.LogError("[NetBootstrap] 与服务器的连接断开了：" + reason);
+            BeginAutoReconnect(reason);
         }
         else if (nm.IsServer && clientId != NetworkManager.ServerClientId)
         {
-            Debug.Log($"[NetBootstrap] 客户端 {clientId} 已离开");
+            int players = 0;
+            for (int i = 0; i < nm.ConnectedClientsIds.Count; i++)
+            {
+                if (nm.ConnectedClientsIds[i] != NetworkManager.ServerClientId) players++;
+            }
+
+            Debug.Log($"[NetBootstrap] 客户端 {clientId} 已离开（剩余玩家 {players}/{maxPlayers}）");
         }
     }
 
@@ -620,7 +831,46 @@ public class NetBootstrap : MonoBehaviour
             return;
         }
 
+        // 专用服务端跑在便宜的小机器上（2 核 / 2GB），必须限制帧率：
+        // -batchmode 下 Unity 会不限帧地空跑，把 CPU 吃满；
+        // CPU 一满，网络 tick 就跟不上，玩家会被判定超时掉线（现象就是「进去又被踢」）。
+        Application.targetFrameRate = 60;
+        QualitySettings.vSyncCount = 0;
+        Application.runInBackground = true;
+
+        StartCoroutine(ServerHeartbeatLog());
+
         Debug.Log("[NetBootstrap] 专用服务端已启动，监听 0.0.0.0:" + port + "，等待玩家连接...");
+    }
+
+    /// <summary>
+    /// 服务端每 30 秒打一行状态。
+    /// NGO 的服务器端不会告诉你「客户端为什么掉线」，所以至少要有心跳，
+    /// 才能看出掉线那一刻机器是被卡住了、还是内存爆了。
+    /// </summary>
+    private IEnumerator ServerHeartbeatLog()
+    {
+        WaitForSecondsRealtime interval = new WaitForSecondsRealtime(30f);
+
+        while (true)
+        {
+            yield return interval;
+
+            NetworkManager nm = NetworkManager.Singleton;
+            if (nm == null || !nm.IsServer) yield break;
+
+            int players = 0;
+            for (int i = 0; i < nm.ConnectedClientsIds.Count; i++)
+            {
+                if (nm.ConnectedClientsIds[i] != NetworkManager.ServerClientId) players++;
+            }
+
+            float fps = Time.smoothDeltaTime > 0.0001f ? 1f / Time.smoothDeltaTime : 0f;
+            long memoryMb = System.GC.GetTotalMemory(false) / (1024L * 1024L);
+
+            Debug.Log($"[NetBootstrap] 服务端心跳：玩家 {players}/{maxPlayers}，帧率 {Mathf.RoundToInt(fps)}，" +
+                      $"托管内存 {memoryMb} MB，已运行 {Mathf.RoundToInt(Time.realtimeSinceStartup / 60f)} 分钟");
+        }
     }
 
     private void DoStartHost()

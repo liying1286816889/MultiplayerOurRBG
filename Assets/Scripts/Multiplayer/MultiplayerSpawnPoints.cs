@@ -56,7 +56,17 @@ public static class MultiplayerSpawnPoints
         if (cachedPoints.Count > 0)
         {
             int slot = index % cachedPoints.Count;
-            return cachedPoints[slot].transform.position;
+            Vector3 position = cachedPoints[slot].transform.position;
+
+            // 玩家人数超过出生点数量时（比如 4 人但只有 2 个出生点），
+            // 按轮次往外错开一点，避免两个玩家叠在同一点互相推挤。
+            int round = index / cachedPoints.Count;
+            if (round > 0)
+            {
+                position.x += round * Mathf.Max(1f, fallbackSpacing);
+            }
+
+            return position;
         }
 
         return GetFallbackPosition(index, fallbackSpacing);

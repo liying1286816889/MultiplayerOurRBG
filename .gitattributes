@@ -23,3 +23,7 @@
 *.ogg  binary
 *.dll  binary
 *.exe  binary
+
+# Windows 批处理必须保持 CRLF，否则 cmd 解析 goto / 括号块会出错
+*.bat text eol=crlf
+*.cmd text eol=crlf

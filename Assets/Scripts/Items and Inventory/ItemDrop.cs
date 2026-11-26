@@ -36,34 +36,17 @@ public class ItemDrop : MonoBehaviour
 
     public void DropItem(ItemData _itemData)
     {
-        if (NetGame.IsOnline && !NetGame.IsServer)
-        {
-            // 联机时只有服务器掷骰子并生成掉落物，其它客户端等同步
-            return;
-        }
+        if (dropPrefab == null) return;
 
+        // 掉落物一律【本地生成】：每个客户端自己掉自己的一份，
+        // 互不干扰，也不会再触发 NetworkObject 的销毁报错。
         Vector2 randomVelocity = new Vector2(Random.Range(-5f, 5f), Random.Range(15f, 20f));
 
-        GameObject newDrop = NetSpawn.Spawn(dropPrefab, transform.position, Quaternion.identity);
-        if (newDrop == null)
-        {
-            return;
-        }
-
+        GameObject newDrop = Instantiate(dropPrefab, transform.position, Quaternion.identity);
         ItemObject itemObject = newDrop.GetComponent<ItemObject>();
-        if (itemObject == null)
-        {
-            return;
-        }
+        if (itemObject == null) return;
 
         itemObject.SteUpItem(_itemData, randomVelocity);
-
-        // 联机：把“这是什么道具”同步给其它玩家
-        NetItemObject netItem = newDrop.GetComponent<NetItemObject>();
-        if (netItem != null)
-        {
-            netItem.ServerSetItem(_itemData);
-        }
     }
 
 }
