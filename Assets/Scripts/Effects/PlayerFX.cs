@@ -45,6 +45,10 @@ public class PlayerFX : EntityFX
     }
     public void ScreenShake(Vector3 _shakePower)
     {
+        // 专用服务端没有本地玩家和相机，直接跳过
+        if (NetGame.IsDedicatedServer) return;
+        if (player == null || screenShake == null) return;
+
         screenShake.m_DefaultVelocity = new Vector3(_shakePower.x * player.facingDir, _shakePower.y, _shakePower.z) * shakeMultiplier;
         screenShake.GenerateImpulse();
     }

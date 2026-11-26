@@ -76,12 +76,12 @@ public class PlayerStats : CharacterStats
             int randomIndex = Random.Range(34, 36);
             AudioManager.instance.PlaySFX(randomIndex);
             player.isBleed = true;
-            if (PlayerManager.instance.player.isBleed)
+            if (player.fx != null && !NetGame.IsDedicatedServer)
             {
-                PlayerManager.instance.player.fx.ClearFX();
-                PlayerManager.instance.player.fx.BleedFxUse(1f);
+                player.fx.ClearFX();
+                player.fx.BleedFxUse(1f);
             }
-            PlayerManager.instance.player.isBleed = false;
+            player.isBleed = false;
         }
 
 

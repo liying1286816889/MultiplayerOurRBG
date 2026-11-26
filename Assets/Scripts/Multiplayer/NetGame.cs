@@ -30,6 +30,12 @@ public static class NetGame
     /// <summary>本机是否是客户端。</summary>
     public static bool IsClient => IsOnline && NetworkManager.Singleton.IsClient;
 
+    /// <summary>
+    /// 是否是「专用服务端」：只跑服务器逻辑，自己没有本地玩家、也不显示画面。
+    /// 等价于"是服务器但不是客户端"，Host 模式不算。
+    /// </summary>
+    public static bool IsDedicatedServer => IsServer && !IsClient;
+
     /// <summary>本机是否是 Host（既是服务器又是客户端）。</summary>
     public static bool IsHost => IsServer && IsClient;
 

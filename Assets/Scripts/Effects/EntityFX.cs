@@ -62,6 +62,9 @@ public class EntityFX : MonoBehaviour
     
     public void CreatePopUpText(string _text)
     {
+        // 服务端不需要飘字（而且 -nographics 下没有渲染）
+        if (NetGame.IsDedicatedServer) return;
+
         float randomX = Random.Range(-2, 2);
         float randomY = Random.Range(3, 5);
         Vector3 positionOffset = new Vector3(randomX, randomY, 0);

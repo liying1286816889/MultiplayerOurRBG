@@ -37,7 +37,7 @@ public class SaveManager : MonoBehaviour
 
         saveManagers = FindAllSaveManagers();
 
-        LoadGame();
+        if (!NetGame.IsDedicatedServer) LoadGame();
         
         //Invoke("LoadGame", .0f);
 
@@ -74,6 +74,7 @@ public class SaveManager : MonoBehaviour
 
     public void SaveGame()
     {
+        if (NetGame.IsDedicatedServer) return;
 
         foreach (ISaveManager saveManager in saveManagers)
         {

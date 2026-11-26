@@ -132,6 +132,7 @@ public class NetBootstrap : MonoBehaviour
         if (args == null || args.Length == 0) return;
 
         bool wantHost = false;
+        bool wantServer = false;
         string joinAddress = null;
 
         for (int i = 0; i < args.Length; i++)
@@ -144,6 +145,11 @@ public class NetBootstrap : MonoBehaviour
                 case "-host":
                 case "--host":
                     wantHost = true;
+                    break;
+
+                case "-server":
+                case "--server":
+                    wantServer = true;
                     break;
 
                 case "-join":
@@ -172,6 +178,13 @@ public class NetBootstrap : MonoBehaviour
             }
         }
 
+        if (wantServer)
+        {
+            Debug.Log("[NetBootstrap] 命令行 -server：启动专用服务端");
+            StartDedicatedServer();
+            return;
+        }
+
         if (wantHost)
         {
             Debug.Log("[NetBootstrap] 命令行 -host：自动创建房间");
@@ -181,6 +194,60 @@ public class NetBootstrap : MonoBehaviour
         {
             Debug.Log("[NetBootstrap] 命令行 -join " + joinAddress + "：自动加入房间");
             StartCoroutine(JoinWithRetry(joinAddress));
+        }
+        else
+        {
+            // 没有命令行参数时，尝试读 exe 旁边的 server.txt 自动进服
+            TryAutoJoinFromConfigFile();
+        }
+    }
+
+    /// <summary>
+    /// 读 exe 同目录下的 server.txt（内容形如 1.2.3.4 或 1.2.3.4:7777），自动连上去。
+    /// 这样把「exe + server.txt」打包发给朋友，他双击就直接进游戏，不用填任何东西。
+    /// </summary>
+    private void TryAutoJoinFromConfigFile()
+    {
+        string path = GetServerConfigPath();
+        if (string.IsNullOrEmpty(path)) return;
+        if (!System.IO.File.Exists(path)) return;
+
+        try
+        {
+            string text = System.IO.File.ReadAllText(path).Trim();
+            if (string.IsNullOrEmpty(text)) return;
+
+            int colon = text.IndexOf(':');
+            if (colon > 0)
+            {
+                ushort parsedPort;
+                if (ushort.TryParse(text.Substring(colon + 1).Trim(), out parsedPort) && parsedPort > 0)
+                {
+                    port = parsedPort;
+                }
+                text = text.Substring(0, colon).Trim();
+            }
+
+            Debug.Log("[NetBootstrap] 从 server.txt 读到服务器地址：" + text + ":" + port);
+            StartCoroutine(JoinWithRetry(text));
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("[NetBootstrap] 读取 server.txt 失败：" + e.Message);
+        }
+    }
+
+    private static string GetServerConfigPath()
+    {
+        try
+        {
+            string exeDir = System.IO.Path.GetDirectoryName(Application.dataPath);
+            if (string.IsNullOrEmpty(exeDir)) return null;
+            return System.IO.Path.Combine(exeDir, "server.txt");
+        }
+        catch (System.Exception)
+        {
+            return null;
         }
     }
 
@@ -483,6 +550,77 @@ public class NetBootstrap : MonoBehaviour
         yield return null;
 
         DoStartHost();
+    }
+
+    /// <summary>
+    /// 以「专用服务端」身份启动：不生成自己的玩家，只跑游戏逻辑。
+    /// 用命令行 -server 触发；配合 -batchmode -nographics 就是一个无窗口服务器。
+    /// </summary>
+    public bool StartDedicatedServer()
+    {
+        if (State == SessionState.Hosting || State == SessionState.Connected) return false;
+        if (State == SessionState.Starting) return false;
+
+        NetworkManager nm = EnsureNetworkManager();
+        if (nm == null || nm.NetworkConfig.PlayerPrefab == null)
+        {
+            Fail("无法启动专用服务端：NetworkManager 或玩家预制体缺失");
+            return false;
+        }
+
+        UnityTransport transport = nm.GetComponent<UnityTransport>();
+        if (transport != null)
+        {
+            transport.SetConnectionData("127.0.0.1", port, "0.0.0.0");
+        }
+
+        SessionRequested = true;
+        SetState(SessionState.Starting, "正在启动专用服务端...");
+
+        if (ShouldPreloadGameplayScene())
+        {
+            StartCoroutine(PreloadSceneThenStartServer());
+        }
+        else
+        {
+            DoStartServer();
+        }
+
+        return true;
+    }
+
+    private IEnumerator PreloadSceneThenStartServer()
+    {
+        AsyncOperation op = SceneManager.LoadSceneAsync(gameplaySceneName, LoadSceneMode.Single);
+        if (op != null)
+        {
+            while (!op.isDone)
+            {
+                yield return null;
+            }
+        }
+
+        yield return null;
+        DoStartServer();
+    }
+
+    private void DoStartServer()
+    {
+        NetworkManager nm = NetworkManager.Singleton;
+        if (nm == null)
+        {
+            Fail("NetworkManager 丢失，无法启动服务端");
+            return;
+        }
+
+        bool ok = nm.StartServer();
+        if (!ok)
+        {
+            Fail("专用服务端启动失败，端口 " + port + " 可能被占用");
+            return;
+        }
+
+        Debug.Log("[NetBootstrap] 专用服务端已启动，监听 0.0.0.0:" + port + "，等待玩家连接...");
     }
 
     private void DoStartHost()

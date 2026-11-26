@@ -52,6 +52,7 @@ public class AudioManager : MonoBehaviour
 
     public void PlaySFX(int _sfxIndex,Transform _source=null)
     {
+        if (NetGame.IsDedicatedServer) return;
         if (!canPlaySFX)
         {
             return;
