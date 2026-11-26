@@ -1,0 +1,12 @@
+fileFormatVersion: 2
+guid: 87e128614afa2fb4ca80cd7d549a5724
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - thunderStrikePrefab: {fileID: 5470633412646015747, guid: e3fc674f7c2da0a45a08b8b7df41d7d5, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

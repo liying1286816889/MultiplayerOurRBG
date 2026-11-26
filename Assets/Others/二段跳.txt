@@ -1,0 +1,18 @@
+二段跳实现，先设置一个变量JumpCount，然后再检测地面加上：
+private void GroundCheck()
+
+{
+
+//用射线检测地面，可防止将墙壁误认为是地面
+isGrounded = Physics2D.Raycast(transform.position, Vector2.down, groundCheckDistance, whatIsGround);
+//实现2段跳，这里设置为1是因为跳起来后，射线任有一段极短的时间接触地面重置计数
+if (isGrounded)
+
+{
+
+jumpCount = 1;
+
+}
+
+}
+每次跳使计数减小1即可

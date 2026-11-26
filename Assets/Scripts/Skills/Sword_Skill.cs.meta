@@ -1,0 +1,20 @@
+fileFormatVersion: 2
+guid: d1ce1c2dbad3ccb4aa7fb626da98cec9
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - bounceUnlockButton: {instanceID: 0}
+  - pierceUnlockButton: {instanceID: 0}
+  - spinUnlockButton: {instanceID: 0}
+  - swordUnlockButton: {instanceID: 0}
+  - swordPrefab: {fileID: 7430206626254175058, guid: ef60aada015af9a49bacb275775ae808, type: 3}
+  - dotPrefab: {instanceID: 0}
+  - dotsParent: {instanceID: 0}
+  - timeStopUnlockButton: {instanceID: 0}
+  - vulnerableUnlockButton: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

@@ -1,0 +1,57 @@
+# ===== Unity 自动生成（不要提交）=====
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+/[Aa]ssets/AssetStoreTools*
+
+# ===== IDE / 工程文件（Unity 会重新生成）=====
+.vs/
+.idea/
+.vscode/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+guidmap.xml
+
+# ===== 操作系统 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== 我的改造 =====
+# 打包产物 / 压缩归档
+Build.zip
+MyRPG-test.zip
+*.apk
+*.aab
+*.app
+*.unitypackage
+
+# ===== 字体：体积或版权原因不提交 =====
+# 130MB，超过 GitHub 单文件 100MB 硬上限，而且全工程 0 引用
+/Assets/Graphics/Font/字体/我的字体.asset
+/Assets/Graphics/Font/字体/我的字体.asset.meta
+# 微软雅黑是商业字体，公开仓库分发属于侵权
+/Assets/Graphics/Font/字体/msyh.ttc
+/Assets/Graphics/Font/字体/msyh.ttc.meta
+# 说明：思源黑体 SourceHanSansSC-Regular.otf 是 SIL OFL 授权，可以正常提交
+
+# ===== 崩溃报告 =====
+sysinfo.txt
+crashlytics-build.properties

@@ -1,0 +1,12 @@
+fileFormatVersion: 2
+guid: 6d19b3d11e4047c48b92591a4fb2c804
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - attackCheck: {fileID: 2863906956981550164, guid: dd5485014fe1ded4d9a9caa2ab91e36b, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

@@ -1,0 +1,1293 @@
+﻿
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI.cs ==========
+
+using System.Collections;
+using System.Collections.Generic;
+using TMPro;
+using Unity.VisualScripting;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+
+public class UI : MonoBehaviour,ISaveManager
+{
+
+    [Header("死亡屏幕")]
+    [SerializeField] public UI_FadeScreen fadeScreen;
+    [SerializeField] private GameObject endText;
+    [SerializeField] private GameObject restartButton;
+
+
+    [SerializeField] private GameObject characterUI;
+    [SerializeField] private GameObject skillTreeUI;
+    [SerializeField] private GameObject craftUI;
+    [SerializeField] private GameObject optionsUI;
+    [SerializeField] private GameObject inGameUI;
+
+    
+
+    public UI_ItemToolTip itemToolTip;
+    public UI_StatsToolTip statsToolTip;
+    public UI_CraftWindow craftWindow;
+    public UI_SkillToolTip skillToolTip;
+    public bool ischange=false;
+
+    [SerializeField] private UI_VolumeSlider[] volumeSettings;
+
+    int currentMenuIndex = 0;
+
+    private void Awake()
+    {
+
+        SwitchTo(skillTreeUI);//先加载技能树，使其可以被SkillManager挂载
+        fadeScreen.gameObject.SetActive(true); 
+
+    }
+
+
+
+    void Start()
+    {
+        SwitchTo(null);
+        SwitchTo(inGameUI);
+        itemToolTip.gameObject.SetActive(false);
+        statsToolTip.gameObject.SetActive(false);
+
+        foreach (UI_VolumeSlider item in volumeSettings)
+        {
+            item.SliderValue(item.slider.value);
+
+        }
+
+    }
+
+    void Update()
+    {
+        SwitchMenu();
+    }
+
+    
+
+
+    private void SwitchMenu()
+    {
+        if(characterUI.activeInHierarchy)
+        {
+            currentMenuIndex = 1;
+        }else if ( skillTreeUI.activeInHierarchy)
+        {
+            currentMenuIndex = 2;
+        }else if( craftUI.activeInHierarchy)
+        {
+            currentMenuIndex = 3;
+        }
+        else if ( optionsUI.activeInHierarchy)
+        {
+            currentMenuIndex = 4;
+        }
+        else
+        {
+            currentMenuIndex = 0;
+            
+        }
+
+        if (Input.GetKeyDown(KeyCode.B) || Input.GetKeyDown(KeyCode.Tab))
+        {
+            AudioManager.instance.PlaySFX(7);
+            currentMenuIndex = 1;
+        }
+
+        if (currentMenuIndex != 0)
+        {
+            if (characterUI.activeInHierarchy || skillTreeUI.activeInHierarchy || craftUI.activeInHierarchy || optionsUI.activeInHierarchy)
+            {
+                if (Input.GetKeyDown(KeyCode.B) || Input.GetKeyDown(KeyCode.Tab) || Input.GetKeyDown(KeyCode.Escape))
+                {
+                    AudioManager.instance.PlaySFX(7);
+                    currentMenuIndex = 0;
+                    ischange = true;
+                }
+            }
+
+
+            if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.E))
+            {
+                AudioManager.instance.PlaySFX(7);
+                currentMenuIndex++;
+                if (currentMenuIndex > 4)
+                {
+                    currentMenuIndex = 1;
+                }
+
+            }
+
+            if (Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.Q))
+            {
+                AudioManager.instance.PlaySFX(7);
+                currentMenuIndex--;
+                if (currentMenuIndex < 1)
+                {
+                    currentMenuIndex = 4;
+                }
+            }
+        }
+
+        if (!ischange && currentMenuIndex == 0)
+        {
+            return;
+        }
+
+        ischange = false;
+
+        //常态下可以添加InGameUI
+        if (currentMenuIndex == 0)
+        {
+            SwitchWithKeyTo(null);
+            CheckForInGameUI();
+        }
+        else if (currentMenuIndex == 1)
+        {
+            SwitchWithKeyTo(characterUI);
+        }
+        else if (currentMenuIndex == 2)
+        {
+            SwitchWithKeyTo(skillTreeUI);
+        }
+        else if (currentMenuIndex == 3)
+        {
+            SwitchWithKeyTo(craftUI);
+        }
+        else if (currentMenuIndex == 4)
+        {
+            SwitchWithKeyTo(optionsUI);
+        }
+
+    }
+
+
+
+    public void SwitchTo(GameObject _menu)
+    {
+
+
+        for (int i = 0; i < transform.childCount; i++)
+        {
+            bool FadeScreen = transform.GetChild(i).GetComponent<UI_FadeScreen>() != null;//我们需要一直保持激活状态
+            if (FadeScreen == false)
+            {
+                transform.GetChild(i).gameObject.SetActive(false);
+            }
+        }
+
+        if(_menu!=null)
+        {
+
+            _menu.SetActive(true);
+        }
+
+        if (GameManager.instance!=null)
+        {
+            if (_menu == inGameUI)
+            {
+                GameManager.instance.PauseGame(false);
+            }
+            else
+            {
+                GameManager.instance.PauseGame(true);
+            }
+
+        }
+
+
+
+    }
+
+    public void SwitchWithKeyTo(GameObject _menu) 
+    {
+        if(_menu!=null&&_menu.activeSelf)
+        {
+            _menu.SetActive(false);
+            
+        }
+
+        SwitchTo(_menu);
+    }
+
+    private void CheckForInGameUI()
+    {
+        //FadeScene会一直处于激活状态，所以当遇到激活状态的情况下添加它
+        for (int i = 0; i < transform.childCount; i++)
+        {
+            if (transform.GetChild(i).gameObject.activeSelf && transform.GetChild(i).GetComponent<UI_FadeScreen>()==null)
+            {
+
+                return;
+            }
+        }
+        SwitchTo(inGameUI);
+    }
+
+    public void SwitchOnEndScreen()
+    {
+
+        fadeScreen.FadeOut();
+        StartCoroutine(EndScreenCorutione());
+    }
+
+    IEnumerator EndScreenCorutione()
+    {
+        yield return new WaitForSeconds(1f);
+        endText.SetActive(true);
+        yield return new WaitForSeconds(1.5f);
+        restartButton.SetActive(true);
+
+    }
+
+    public void ReStartButton()
+    {
+        GameManager.instance.RestartScene();
+    }
+
+    
+
+
+    public void LoadData(GameData _data)
+    {
+        foreach (KeyValuePair<string,float> pair in _data.voluemSettings)
+        {
+            foreach (UI_VolumeSlider item in volumeSettings)
+            {
+                if (item.parameter == pair.Key)
+                {
+                    item.LoadSlider(pair.Value);
+                }
+                
+            }
+
+        }
+    }
+
+
+    public void SaveData(ref GameData _data)
+    {
+        _data.voluemSettings.Clear();
+
+        foreach (UI_VolumeSlider item in volumeSettings)
+        {
+            _data.voluemSettings.Add(item.parameter, item.slider.value);
+        }
+
+    }
+
+}
+
+
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI_CraftList.cs ==========
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.EventSystems;
+
+public class UI_CraftList : MonoBehaviour,IPointerDownHandler
+{
+    [SerializeField] private Transform craftSlotParent;
+    [SerializeField] private GameObject craftSlotPrefab;
+
+    [SerializeField] private List<ItemData_Equipment> craftEquipment;
+
+    private void Start()
+    {
+        transform.parent.GetChild(0).GetComponent<UI_CraftList>().SetUpCraftList();
+        SetUpDefaultCraftWindow();
+    }
+
+
+
+
+
+    public void SetUpCraftList()
+    {
+        for (int i = 0; i <craftSlotParent.childCount; i++)
+        {
+            Destroy(craftSlotParent.GetChild(i).gameObject);
+
+        }
+
+        
+        for (int i = 0; i < craftEquipment.Count; i++)
+        {
+            GameObject newSlot=Instantiate(craftSlotPrefab, craftSlotParent);
+            
+            newSlot.GetComponent<UI_CraftSlot>().SetUpCraftSlot(craftEquipment[i]);
+
+            //craftSlots.Add(newSlot.GetComponent<UI_CraftSlot>());
+
+        }
+    }
+
+    public void OnPointerDown(PointerEventData eventData)
+    {
+        SetUpCraftList();
+    }
+
+    public void SetUpDefaultCraftWindow()
+    {
+        if(craftEquipment[0]!=null)
+        GetComponentInParent<UI>().craftWindow.SetCraftWindow(craftEquipment[0]);
+    }
+
+
+}
+
+
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI_CraftSlot.cs ==========
+
+using UnityEngine.EventSystems;
+
+public class UI_CraftSlot : UI_ItemSlot
+{
+
+    override protected void Start()
+    {
+        base.Start();
+    }
+
+    public void SetUpCraftSlot(ItemData_Equipment _data)
+    {
+        if(_data == null) return;
+
+        item.data = _data;
+        itemImage.sprite = _data.icon;
+        itemText.text=_data.itemName;
+
+        if (itemText.text.Length > 12)
+        {
+            itemText.fontSize = itemText.fontSize * 0.7f;
+        }
+        else
+        {
+            itemText.fontSize = 24;
+        }
+
+
+    }
+    public override void OnPointerDown(PointerEventData eventData)
+    {
+        if (item == null) return;
+
+        ui.craftWindow.SetCraftWindow(item.data as ItemData_Equipment); 
+
+    }
+
+
+}
+
+
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI_CraftWindow.cs ==========
+
+using System.Collections;
+using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class UI_CraftWindow : MonoBehaviour
+{
+    [SerializeField] private TextMeshProUGUI itemName;
+    [SerializeField] private TextMeshProUGUI itemDescription;
+    [SerializeField] private Image itemIcon;
+    [SerializeField] private Button CraftButton;
+
+    [SerializeField] private Image[] materialImage;
+
+    public void SetCraftWindow(ItemData_Equipment _data)
+    {
+        if(_data == null) return;
+
+        CraftButton.onClick.RemoveAllListeners();
+
+        for (int i = 0; i < materialImage.Length; i++)
+        {
+            materialImage[i].color=Color.clear;
+            materialImage[i].GetComponentInChildren<TextMeshProUGUI>().color = Color.clear;
+        }
+
+        for (int i = 0; i < _data.craftingMaterials.Count; i++)
+        {
+            if (_data.craftingMaterials.Count > materialImage.Length)
+            {
+                Debug.LogWarning("你使用的材料种类超过上限了");
+            }
+            materialImage[i].sprite = _data.craftingMaterials[i].data.icon;
+            materialImage[i].color = Color.white;
+
+            TextMeshProUGUI materialSlotText = materialImage[i].GetComponentInChildren<TextMeshProUGUI>();
+
+            materialSlotText.text = _data.craftingMaterials[i].stackSize.ToString();
+            materialSlotText.color = Color.white;
+        }
+
+        itemIcon.sprite = _data.icon;
+        itemName.text = _data.itemName;
+        itemDescription.text=_data.GetDescription();
+
+        CraftButton.onClick.AddListener(
+            ()=>Inventory.instance.CanCraft(_data,_data.craftingMaterials)
+            );
+
+    }
+
+
+}
+
+
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI_EquipmentSlot.cs ==========
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.EventSystems;
+
+public class UI_EquipmentSlot : UI_ItemSlot 
+{ 
+    public EquipmentType slotType;
+
+    private void OnValidate()
+    {
+        gameObject.name="Equipment Slot - "+slotType.ToString();
+    }
+
+    public override void OnPointerDown(PointerEventData eventData)
+    {
+        if (item == null) 
+        {
+            return;
+        }
+
+
+        Inventory.instance.UnEquipItem(item.data as ItemData_Equipment);
+        Inventory.instance.AddItem(item.data as ItemData_Equipment);
+
+        ui.itemToolTip.HideToolTip();
+
+        CleanUpSlot();
+
+    }
+
+
+}
+
+
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI_FadeScreen.cs ==========
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class UI_FadeScreen : MonoBehaviour
+{
+    private Animator anim;
+
+    private void Awake()
+    {
+
+    }
+    private void Start()
+    {
+        anim = GetComponent<Animator>();
+    }
+
+    public void FadeOut()
+    {
+        anim.SetTrigger("FadeOut");
+    }
+    public void FadeIn()
+    {
+        anim.SetTrigger("FadeIn");
+    }
+
+
+}
+
+
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI_HealthBar.cs ==========
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.TextCore.Text;
+using UnityEngine.UI;
+
+public class UI_HealthBar : MonoBehaviour
+{
+    private Entity entity=>GetComponentInParent<Entity>();
+    private RectTransform myTransform;
+    private Slider slider;
+    private CharacterStats myStats=>GetComponentInParent<CharacterStats>();
+
+
+    private void Start()
+    {
+        myTransform = GetComponent<RectTransform>();
+        slider = GetComponentInChildren<Slider>();
+
+        UpdateHealthUI();
+    }
+    private void Update()
+    {
+        UpdateHealthUI();
+    }
+
+    private void UpdateHealthUI()
+    {
+        slider.maxValue = myStats.GetMaxHealthValue();
+        slider.value = myStats.currentHealth;
+    }
+    private void OnEnable()
+    {
+        entity.OnFlipped += FlipUI;
+        myStats.onHealthChanged += UpdateHealthUI;
+
+    }
+
+
+
+    
+    private void OnDisable()
+    {
+        if (entity != null)
+        {
+            entity.OnFlipped -= FlipUI;
+        }
+        if (myStats != null)
+        {
+            myStats.onHealthChanged -= UpdateHealthUI;
+        }
+    }
+
+    private void FlipUI() => myTransform.Rotate(0f, 180f, 0f);
+
+}
+
+
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI_InGame.cs ==========
+
+using System.Collections;
+using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class UI_InGame : MonoBehaviour
+{
+    [SerializeField] private PlayerStats playerStats;
+    [SerializeField] private Slider slider;
+    [SerializeField] private Image dashImage;
+    [SerializeField] private Image parryImage;
+    [SerializeField] private Image crystalImage;
+    [SerializeField] private Image swordImage;
+    [SerializeField] private Image blackholeImage;
+    [SerializeField] private Image flaskImage;
+
+
+    [Header("Solus info")]
+    [SerializeField] private TextMeshProUGUI currentSouls;
+    [SerializeField] private float soulsAmount;
+    [SerializeField] private float increaseRate = 100;
+
+    private SkillManager skills;
+
+    private void Start()
+    {
+        if (playerStats != null)
+        {
+            playerStats.onHealthChanged += UpdateHealthUI;
+        }
+        skills=SkillManager.instance;
+
+
+
+    }
+    private void Update()
+    {
+        UpdataSoulsUI();
+
+        if (Input.GetKeyUp(KeyCode.LeftShift) && skills.dash.dashUnlocked)
+        {
+            SetCooldownOf(dashImage);
+        }
+
+        if (Input.GetKeyUp(KeyCode.Q) && skills.parry.parryUnLocked)
+        {
+            SetCooldownOf(parryImage);
+        }
+
+        if (Input.GetKeyUp(KeyCode.F) && skills.crystal.crystalUnlocked)
+        {
+            SetCooldownOf(crystalImage);
+        }
+
+        if (Input.GetKeyUp(KeyCode.Mouse1) && skills.sword.swordUnlocked)
+        {
+            SetCooldownOf(swordImage);
+        }
+
+        if (Input.GetKeyUp(KeyCode.R) && skills.blackhole.blackHoleUnlocked)
+        {
+            SetCooldownOf(blackholeImage);
+        }
+
+        if (Input.GetKeyUp(KeyCode.Alpha1) && Inventory.instance.GetEquipment(EquipmentType.Flask) != null)
+        {
+            SetCooldownOf(flaskImage);
+        }
+
+        //冲刺图标 
+        CheckCooldownOf(dashImage, skills.dash.cooldown);
+        //反击图标
+        CheckCooldownOf(parryImage, skills.parry.cooldown);
+        //水晶图标
+        CheckCooldownOf(crystalImage, skills.crystal.cooldown);
+        //剑图标
+        CheckCooldownOf(swordImage, skills.sword.cooldown);
+        //黑洞图标
+        CheckCooldownOf(blackholeImage, skills.blackhole.cooldown);
+        //药水图标
+        CheckCooldownOf(flaskImage, Inventory.instance.flaskCooldown);
+    }
+
+    private void UpdataSoulsUI()
+    {
+        if (soulsAmount < PlayerManager.instance.GetCurrency())
+        {
+            soulsAmount += Time.deltaTime * increaseRate;
+        }
+        else
+        {
+            soulsAmount = PlayerManager.instance.GetCurrency();
+        }
+
+        currentSouls.text = Mathf.RoundToInt(soulsAmount).ToString();
+    }
+
+    private void UpdateHealthUI()
+    {
+        slider.maxValue = playerStats.GetMaxHealthValue();
+        slider.value = playerStats.currentHealth;
+    }
+
+    private void SetCooldownOf(Image _image)
+    {
+        if (_image.fillAmount <= 0)
+        {
+            _image.fillAmount = 1;
+        }
+        
+    }
+
+    private void CheckCooldownOf(Image _image,float _cooldown)
+    {
+        if (_cooldown == 0) return; 
+        if (_image.fillAmount > 0)
+        {
+            _image.fillAmount -= 1/_cooldown*Time.deltaTime;
+        }
+
+    }
+
+}
+
+
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI_ItemSlot.cs ==========
+
+using System.Collections;
+using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+
+public class UI_ItemSlot : MonoBehaviour,IPointerDownHandler,IPointerEnterHandler, IPointerExitHandler
+{
+   [SerializeField] protected Image itemImage;
+   [SerializeField] protected TextMeshProUGUI itemText;
+
+    protected UI ui;
+
+    public InventoryItem item;
+    private  ItemDrop itemDrop;
+
+    protected virtual void Start()
+    {
+        ui=GetComponentInParent<UI>();
+
+    }
+
+    public void UpdateSlot(InventoryItem _newItem )
+    {
+        item=_newItem;
+        itemImage.color=Color.white;
+        if (item != null)
+        {
+            itemImage.sprite = item.data.icon;
+            if (item.stackSize >=1)
+            {
+                itemText.text = item.stackSize.ToString();
+            }
+            else
+            {
+                itemText.text = "";
+            }
+
+        }
+    }
+
+    public void CleanUpSlot()
+    {
+        item=null;
+        itemImage.sprite=null;
+        itemImage.color = Color.clear;
+        itemText.text = "";
+    }
+
+
+    public virtual void OnPointerDown(PointerEventData eventData)
+    {
+        if (item == null)
+        {
+
+            return;
+        }
+
+        if(Input.GetKey(KeyCode.LeftControl) )
+        {
+            Inventory.instance.RemoveItem(item.data);
+            return;
+        }
+        
+        if (item.data.ItemType == ItemType.Equipment)
+        {
+            Inventory.instance.EquipItem(item.data);
+        }
+
+        ui.itemToolTip.HideToolTip();
+        
+    }
+
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        if (item == null)
+        {
+            return;
+        }
+        ui.itemToolTip.ShowToolTip(item.data as ItemData_Equipment);
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        if (item == null)
+        {
+            return;
+        }
+        ui.itemToolTip.HideToolTip();
+    }
+}
+
+
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI_ItemToolTip.cs ==========
+
+using System.Collections;
+using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+
+public class UI_ItemToolTip : UI_ToolTip
+{
+    [SerializeField] private TextMeshProUGUI itemNameText;
+    [SerializeField] private TextMeshProUGUI itemTypeText;
+    [SerializeField] private TextMeshProUGUI itemDescription;
+
+    void Start()
+    {
+
+    }
+
+    public void ShowToolTip(ItemData_Equipment item)
+    {
+        if(item==null)
+        {
+            return;
+        }
+        itemNameText.text = "Name:\n"+item.itemName; 
+        itemTypeText.text ="Type:"+ item.equipmentType.ToString();
+        itemDescription.text = item.GetDescription();
+        AdjustPosition();
+        gameObject.SetActive(true);
+    }
+
+    
+
+
+    public void HideToolTip()
+    {
+        gameObject.SetActive(false);
+    }
+
+
+}
+
+
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI_MainMenu.cs ==========
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+
+public class UI_MainMenu : MonoBehaviour
+{
+    [SerializeField] private string sceneName = "MainScene";
+    [SerializeField] private GameObject continueButton;
+    [SerializeField] UI_FadeScreen fadeScreen;
+
+
+    private void Start()
+    {
+
+        if (SaveManager.instance.HasSaveData()==false)
+        {
+            continueButton.SetActive(false);
+            return;
+        }
+
+
+    }
+
+
+
+    public void ContinueGame()
+    {
+        StartCoroutine(LoadWithFadeEffect(1.5f));
+
+
+    }
+
+    public void NewGame()
+    {
+        SaveManager.instance.DeleateSaveData();
+        StartCoroutine(LoadWithFadeEffect(1.5f));
+    }
+
+    public void ExitGame()
+    {
+        //退出游戏
+        Debug.Log("退出游戏");
+
+    }
+
+    IEnumerator LoadWithFadeEffect(float _delay)
+    {
+        fadeScreen.FadeOut();
+
+        yield return new WaitForSeconds(_delay);
+
+        SceneManager.LoadScene(sceneName);
+
+    }
+
+
+}
+
+
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI_Options.cs ==========
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class UI_Options : MonoBehaviour
+{
+    // Start is called before the first frame update
+    void Start()
+    {
+        
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        
+    }
+}
+
+
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI_SkillToolTip.cs ==========
+
+using System.Collections;
+using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+
+public class UI_SkillToolTip : UI_ToolTip
+{
+    [SerializeField] private TextMeshProUGUI skillDescription;
+    [SerializeField] private TextMeshProUGUI skillName;
+    [SerializeField] private TextMeshProUGUI skillCost;
+
+    public void ShowToolTip(string _skillDescription,string _skillname,string _skillCost)
+    {
+        skillDescription.text = _skillDescription;
+        skillName.text ="技能:"+"\n "+ _skillname;
+        skillCost.text = "花费: " + _skillCost;
+
+        AdjustPosition();
+        gameObject.SetActive(true);
+    }
+
+
+    public void HideToolTip() 
+    {
+        gameObject.SetActive(false);
+    }
+
+}
+
+
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI_SkillTreeSlot.cs ==========
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+
+public class UI_SkillTreeSlot : MonoBehaviour, IPointerEnterHandler,IPointerExitHandler,ISaveManager
+{
+
+    private UI ui;
+    private Image skillImage;
+
+
+    [SerializeField] private int skillCost;
+    [SerializeField] string skillName;
+    [TextArea]
+    [SerializeField] string skillDescription;
+    [SerializeField] Color lockedSkillColor;
+    [SerializeField] Color UnlockedSkillColor;
+
+
+
+    public bool unLocked;
+    [SerializeField] private UI_SkillTreeSlot[] shouldBeUnLocked;
+    [SerializeField] private UI_SkillTreeSlot[] shouldBeLocked;
+    
+
+    private void OnValidate()
+    {
+        gameObject.name="SkillTreeSlot_UI -"+skillName;
+    }
+
+    private void Awake()
+    {
+        GetComponent<Button>().onClick.AddListener(() => UnLockSkillSlot());
+    }
+
+
+    private void Start()
+    {
+        skillImage = GetComponent<Image>();
+
+        ui = GetComponentInParent<UI>();
+        skillImage.color = lockedSkillColor;
+
+        if (unLocked)
+        {
+            skillImage.color = Color.white;
+        }
+
+    }
+
+    public void UnLockSkillSlot()
+    {
+        for (int i = 0; i < shouldBeUnLocked.Length; i++)
+        {
+            if (shouldBeUnLocked[i].unLocked == false)
+            {
+                return;
+            }
+            
+        }
+
+        for (int i = 0; i < shouldBeLocked.Length; i++)
+        {
+            if (shouldBeLocked[i].unLocked == true)
+            {
+                return;
+            }
+
+        }
+
+        if (unLocked == false)
+        {
+            if (PlayerManager.instance.HaveEnoughMoney(skillCost) == false)
+            {
+                return;
+            }
+        }
+        
+        unLocked = true;
+        skillImage.color = UnlockedSkillColor;
+    }
+
+
+
+
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        ui.skillToolTip.ShowToolTip(skillDescription, skillName,skillCost.ToString());
+    }
+
+    
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        ui.skillToolTip.HideToolTip();    
+    }
+
+    public void LoadData(GameData _data)
+    {
+        if (_data.skillTree.TryGetValue(skillName,out bool value))
+        {
+            unLocked = value;
+        }
+
+
+    }
+
+    public void SaveData(ref GameData _data)
+    {
+        if(_data.skillTree.TryGetValue(skillName,out bool value))
+        {
+            _data.skillTree.Remove(skillName);
+            _data.skillTree.Add(skillName, unLocked);
+        }
+        else
+        {
+            _data.skillTree.Add(skillName, unLocked); 
+        }
+
+
+    }
+}
+
+
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI_StatsSloat.cs ==========
+
+using System.Collections;
+using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UIElements;
+
+public class UI_StatsSlot : MonoBehaviour,IPointerEnterHandler, IPointerExitHandler
+{
+    private UI ui;
+
+    [SerializeField] private string statName;
+    [SerializeField] private StatType statType;
+
+    [SerializeField] private TextMeshProUGUI statValueText;
+    [SerializeField] private TextMeshProUGUI statNameText;
+
+    [TextArea]
+    [SerializeField] private string statsDescription;
+
+
+
+    private void OnValidate()
+    {
+        gameObject.name="Stats -"+statName;
+
+        if (statName != null)
+        {
+            statNameText.text = statName;
+
+        }
+    }
+
+    void Start()
+    {
+        UpdateStatsValueUI();
+        ui=GetComponentInParent<UI>();
+
+    }
+
+    public void UpdateStatsValueUI()
+    {
+        PlayerStats playerStats=PlayerManager.instance.player.GetComponent<PlayerStats>();
+        if (playerStats != null)
+        { 
+            
+            statValueText.text = playerStats.GetStatsByType(statType).GetValue().ToString();
+
+            if( statType==StatType.health)
+            {
+                statValueText.text =playerStats.GetMaxHealthValue().ToString();
+            }
+
+            if( statType==StatType.damage)
+            {
+                statValueText.text =(playerStats.damage.GetValue()+playerStats.strengths.GetValue()).ToString();
+            }
+            
+            if (statType == StatType.critChance)
+            {
+                statValueText.text = (playerStats.critChance.GetValue() + playerStats.agility.GetValue()).ToString();
+            }
+
+            if (statType == StatType.critPower)
+            {
+                statValueText.text = (playerStats.critPower.GetValue() + playerStats.strengths.GetValue()).ToString();
+            }
+
+            if (statType == StatType.evasion)
+            {
+                statValueText.text = (playerStats.evasion.GetValue() + playerStats.agility.GetValue()).ToString();
+            }
+
+            if (statType == StatType.magicResistance)
+            {
+                statValueText.text = (playerStats.magicResistance.GetValue() + playerStats.intelligence.GetValue()*3).ToString();
+            }
+
+
+        }
+
+    }
+
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        ui.statsToolTip.ShowStatsToolTip(statsDescription);
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        ui.statsToolTip.HideStatsToolTip();   
+
+    }
+}
+
+
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI_StatsToolTip.cs ==========
+
+using System.Collections;
+using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+
+public class UI_StatsToolTip : MonoBehaviour
+{
+    [SerializeField] private TextMeshProUGUI description;
+
+    public void ShowStatsToolTip(string _text)
+    {
+        description.text = _text;
+        gameObject.SetActive(true);
+    }
+
+    public void HideStatsToolTip()
+    {
+        description.text = "";
+        gameObject.SetActive(false);
+    }
+
+
+
+
+}
+
+
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI_ToolTip.cs ==========
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class UI_ToolTip : MonoBehaviour
+{
+    [SerializeField] private float xLimit=Screen.width*0.5f;
+    [SerializeField] private float yLimit = Screen.height*0.5f;
+
+    [SerializeField] private float xOffset;
+    [SerializeField] private float yOffset;
+    
+
+
+
+
+    public virtual void  AdjustPosition()
+    {
+        Vector2 mousePosition=Input.mousePosition;
+
+        float newXoffset = 0;
+        float newYoffset = 0;
+
+        if(mousePosition.x>xLimit)
+        {
+            newXoffset=-xOffset;
+        }else
+        {
+            newXoffset = xOffset;
+        }
+
+        if (mousePosition.y > yLimit) 
+        {
+         newYoffset=-yOffset;
+        }
+        else
+        {
+            newYoffset = yOffset;
+        }
+        transform.position=new Vector2(mousePosition.x+newXoffset, mousePosition.y+newYoffset);
+    }
+
+}
+
+
+// ========== 文件：D:\unitycod\MyRBG-test\Assets\Scripts\UI\UI_VolumeSlider.cs ==========
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Audio;
+using UnityEngine.UI;
+
+
+public class UI_VolumeSlider : MonoBehaviour
+{
+    public Slider slider;
+
+    public string parameter;
+    [SerializeField] private AudioMixer audioMixer;
+    [SerializeField] private float multiplier;
+
+    
+
+    public void SliderValue(float _value)
+    {
+        audioMixer.SetFloat(parameter, Mathf.Log10(_value)*multiplier);
+    }
+
+    public void LoadSlider(float _value)
+    {
+        if (slider.value >= 0.0001f)
+        {
+            slider.value = _value;
+        }
+    }
+
+}
+

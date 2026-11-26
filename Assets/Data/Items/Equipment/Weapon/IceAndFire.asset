@@ -1,0 +1,44 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 270a3bf6b208bc640bb050c681f8e927, type: 3}
+  m_Name: IceAndFire
+  m_EditorClassIdentifier: 
+  ItemType: 1
+  itemName: "\u971C\u708E"
+  icon: {fileID: 1398721256, guid: a9ca9a41598dd2e44b125928045c518f, type: 3}
+  dropChance: 19
+  equipmentType: 0
+  itemEffectDescription: "\u53D1\u5C04\u4E00\u9053\u51B0\u4E0E\u706B\u7684\u65CB\u8F6C\u7403"
+  itemCooldown: 0
+  itemEffects:
+  - {fileID: 11400000, guid: 838f5b2d18f572949bfb108ac95a09ed, type: 2}
+  - {fileID: 11400000, guid: 719454a1e89313f4d831a96d2514ac67, type: 2}
+  FlaskDescription: []
+  strength: 0
+  agility: 0
+  intelligence: 0
+  vitality: 0
+  damage: 10
+  critChance: 0
+  critPower: 0
+  health: 0
+  armor: 0
+  evasion: 0
+  magicResistance: 0
+  fireDamage: 5
+  iceDamage: 10
+  lightningDamage: 0
+  craftingMaterials:
+  - data: {fileID: 11400000, guid: d54b32f37c12433408c5f159fb605637, type: 2}
+    stackSize: 1
+  - data: {fileID: 11400000, guid: 61cd7ce9e80b5b74886c8ca308b76525, type: 2}
+    stackSize: 2
